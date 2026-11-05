@@ -1,0 +1,37 @@
+cmake_minimum_required(VERSION 3.25)
+string(RANDOM LENGTH 12 id)
+set(stage "${BINARY}/managed-install-tests/run-${id}")
+execute_process(COMMAND "${CMAKE_COMMAND}" --install "${BINARY}" --config "${CONFIG}" --prefix "${stage}"
+    COMMAND_ERROR_IS_FATAL ANY)
+file(GLOB_RECURSE private_runtime
+    "${stage}/*qt.conf" "${stage}/*Qt6*.dll" "${stage}/*libQt6*.so*"
+    "${stage}/*Qt*.framework/*" "${stage}/*demo_parser*")
+if(private_runtime OR EXISTS "${stage}/textscope.app/Contents/Frameworks")
+    message(FATAL_ERROR "Managed install contains private runtime or example plug-ins: ${private_runtime}")
+endif()
+if(APPLE)
+    set(executable "${stage}/textscope.app/Contents/MacOS/textscope")
+    set(launcher "${stage}/textscope.app/Contents/MacOS/tscope")
+    if(NOT EXISTS "${stage}/textscope.app/Contents/Resources/textscope.icns" OR
+       NOT EXISTS "${stage}/textscope.app/Contents/Resources/LICENSE")
+        message(FATAL_ERROR "Managed app resources are missing")
+    endif()
+else()
+    set(executable "${stage}/${BINDIR}/textscope")
+    set(launcher "${stage}/${BINDIR}/tscope")
+    if(WIN32)
+        string(APPEND executable ".exe")
+        string(APPEND launcher ".exe")
+    endif()
+endif()
+execute_process(COMMAND "${executable}" --version OUTPUT_VARIABLE version
+    COMMAND_ERROR_IS_FATAL ANY)
+if(NOT version MATCHES "^TextScope [0-9]+\\.[0-9]+\\.[0-9]+")
+    message(FATAL_ERROR "Installed application version check failed: ${version}")
+endif()
+execute_process(COMMAND "${launcher}" --version OUTPUT_VARIABLE launcher_version
+    COMMAND_ERROR_IS_FATAL ANY)
+if(NOT launcher_version STREQUAL version)
+    message(FATAL_ERROR "Installed launcher version differs: ${launcher_version}")
+endif()
+file(REMOVE_RECURSE "${stage}")

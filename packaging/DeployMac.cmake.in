@@ -1,0 +1,48 @@
+set(bundle "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/textscope.app")
+get_filename_component(bundle "${bundle}" ABSOLUTE)
+if(NOT "@TEXTSCOPE_HOMEBREW_PREFIX@" STREQUAL "")
+    foreach(component IN ITEMS pcre2 openssl@3 openssl@4 dbus glib harfbuzz
+        icu4c icu4c@79 md4c zstd freetype libpng graphite2 brotli libb2 double-conversion gettext)
+        file(GLOB notices LIST_DIRECTORIES false
+            "@TEXTSCOPE_HOMEBREW_PREFIX@/opt/${component}/LICENSE*"
+            "@TEXTSCOPE_HOMEBREW_PREFIX@/opt/${component}/LICENCE*"
+            "@TEXTSCOPE_HOMEBREW_PREFIX@/opt/${component}/COPYING*")
+        foreach(notice IN LISTS notices)
+            get_filename_component(source "${notice}" REALPATH)
+            file(INSTALL "${source}" DESTINATION "${bundle}/Contents/Resources/licenses/${component}")
+        endforeach()
+    endforeach()
+endif()
+foreach(component IN ITEMS qtbase qt5compat)
+    set(sbom "@TEXTSCOPE_QT_DATA_DIR@/sbom/${component}-@Qt6_VERSION@.spdx")
+    if(EXISTS "${sbom}")
+        get_filename_component(source "${sbom}" REALPATH)
+        file(INSTALL "${source}" DESTINATION "${bundle}/Contents/Resources/sbom")
+    endif()
+endforeach()
+set(executables "-executable=${bundle}/Contents/MacOS/tscope")
+foreach(plugin IN ITEMS
+    platforms/libqcocoa.dylib
+    platforms/libqoffscreen.dylib
+    platforms/libqminimal.dylib
+    styles/libqmacstyle.dylib)
+    if(NOT EXISTS "@TEXTSCOPE_QT_PLUGIN_DIR@/${plugin}")
+        message(FATAL_ERROR "Required Qt plug-in is missing: ${plugin}")
+    endif()
+    get_filename_component(directory "${plugin}" DIRECTORY)
+    get_filename_component(source "@TEXTSCOPE_QT_PLUGIN_DIR@/${plugin}" REALPATH)
+    file(REMOVE "${bundle}/Contents/PlugIns/${plugin}")
+    file(INSTALL "${source}" DESTINATION "${bundle}/Contents/PlugIns/${directory}")
+    list(APPEND executables "-executable=${bundle}/Contents/PlugIns/${plugin}")
+endforeach()
+if(EXISTS "${bundle}/Contents/PlugIns/textscope/libtextscope_demo_parser.dylib")
+    list(APPEND executables "-executable=${bundle}/Contents/PlugIns/textscope/libtextscope_demo_parser.dylib")
+endif()
+file(MAKE_DIRECTORY "${bundle}/Contents/Resources")
+file(WRITE "${bundle}/Contents/Resources/qt.conf" "[Paths]\nPlugins=PlugIns\n")
+execute_process(COMMAND "@TEXTSCOPE_MACDEPLOYQT@" "${bundle}" -no-plugins -always-overwrite ${executables}
+    RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE errors)
+message(STATUS "${output}")
+if(NOT result EQUAL 0 OR "${output}${errors}" MATCHES "ERROR:")
+    message(FATAL_ERROR "Qt deployment failed (${result}): ${output}\n${errors}")
+endif()

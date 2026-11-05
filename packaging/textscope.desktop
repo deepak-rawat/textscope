@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=TextScope
+Comment=View, filter and navigate large text files
+Exec=textscope %f
+Icon=textscope
+Terminal=false
+Categories=Utility;TextTools;
+MimeType=text/plain;

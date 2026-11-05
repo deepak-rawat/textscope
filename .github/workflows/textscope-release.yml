@@ -1,0 +1,111 @@
+name: TextScope release
+
+on:
+  push:
+    tags: ["textscope-v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag, such as textscope-v0.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: textscope-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      sha: ${{ steps.version.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate tag and source version
+        id: version
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG" =~ ^textscope-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Expected a textscope-vMAJOR.MINOR.PATCH tag"
+            exit 1
+          fi
+          git show-ref --verify "refs/tags/$TAG"
+          sha=$(git rev-parse "refs/tags/$TAG^{commit}")
+          git checkout --detach "$sha"
+          version=$(sed -nE 's/^project\(TextScope VERSION ([0-9]+\.[0-9]+\.[0-9]+) .*$/\1/p' CMakeLists.txt)
+          if [[ "$TAG" != "textscope-v$version" ]]; then
+            echo "::error::Tag $TAG does not match TextScope version $version"
+            exit 1
+          fi
+          printf 'tag=%s\nsha=%s\n' "$TAG" "$sha" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: validate
+    uses: ./.github/workflows/textscope-build.yml
+    with:
+      source-ref: ${{ needs.validate.outputs.sha }}
+      release-tag: ${{ needs.validate.outputs.tag }}
+
+  release:
+    needs: [validate, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.validate.outputs.tag }}
+      SOURCE_SHA: ${{ needs.validate.outputs.sha }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: textscope-*
+          path: release-artifacts
+      - name: Verify and assemble release assets
+        run: |
+          cmake "-DARTIFACTS=$PWD/release-artifacts" "-DOUTPUT=$PWD/release-assets" \
+            "-DRELEASE_TAG=$TAG" -P packaging/PrepareReleaseAssets.cmake
+          cd release-assets
+          sha256sum --check SHA256SUMS
+      - name: Create draft with all assets
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "refs/tags/$TAG"
+          if [[ "$(git rev-parse 'FETCH_HEAD^{commit}')" != "$SOURCE_SHA" ]]; then
+            echo "::error::Release tag moved after validation; refusing to upload"
+            exit 1
+          fi
+          cat > release-notes.md <<EOF
+          Source revision: $SOURCE_SHA
+
+          This release is a draft for installation and package verification.
+          Publish it manually in GitHub Releases only after verification.
+
+          Assets include standalone Linux, macOS and Windows packages, Arch and Windows
+          MSYS2 UCRT64 packages, the source archive, recipes and SHA-256 checksums.
+          Both Windows packages use MSYS2 UCRT64 GCC, not MSVC/vcpkg.
+          Standalone filenames identify their OS and architecture; the macOS DMG
+          is not a universal build and is ad-hoc signed, not notarized.
+          Homebrew is distributed as a source-only formula, not a bottle.
+          Public recipe download URLs work only after the release is published.
+          EOF
+          gh release create "$TAG" release-assets/* --verify-tag --draft \
+            --title "TextScope ${TAG#textscope-v}" --notes-file release-notes.md
+          if [[ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" != true ]]; then
+            echo "::error::Expected the release to remain a draft"
+            exit 1
+          fi
+          url=$(gh release view "$TAG" --json url --jq .url)
+          printf 'Draft release: %s\n\nVerify its assets, then publish manually in GitHub Releases.\n' \
+            "$url" >> "$GITHUB_STEP_SUMMARY"

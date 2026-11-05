@@ -1,0 +1,59 @@
+TextScope
+=====================
+
+Open a file with File > Open or drag it onto the window. The default mode captures
+an immutable snapshot, so deleting or editing the original does not change your view.
+Large sources and indexes use application-owned temporary storage.
+
+Add filters with Filters > Add New Filter, or double-click a line. Filters match
+literal text, native PCRE2 regular expressions, or one of eight marker types.
+Including filters combine with OR; excluding filters remove lines afterward.
+When no including filters are enabled, all non-excluded lines are accepted.
+The topmost matching colored including filter supplies the line's colors.
+
+Use Show Only Filtered Lines to hide unmatched lines. Switching modes preserves
+the source-line anchor. Find searches the full document, including hidden lines.
+Copy operates on selected full lines. Save Current Lines streams the displayed
+set to UTF-8, independent of any display truncation.
+
+Keyboard
+--------
+Use Command on macOS and Control on Windows/Linux for conventional commands.
+Open: Cmd/Ctrl+O. Find: Cmd/Ctrl+F. Copy/Paste: Cmd/Ctrl+C/V.
+Add filter: Cmd/Ctrl+N. New window: Cmd/Ctrl+Shift+N.
+Filtered-only: Cmd+Shift+H on macOS (Cmd+H remains Hide); Ctrl+H elsewhere.
+Marker toggle: Cmd/Ctrl+1 through 8.
+Space / Shift+Space: next / previous accepted line.
+1 through 8 / Shift+1 through 8: next / previous marker.
+A through Z / Shift+A through Z: next / previous corresponding filter.
+Cmd/Ctrl+Shift+A through Z: toggle corresponding filter.
+F8 / Shift+F8: next / previous selected filter.
+Shift extends selection; Cmd/Ctrl adds individual lines.
+In the filter list, Space toggles selected filters, Enter edits, Delete removes.
+Cmd/Ctrl+arrow keys dock the list to the corresponding side.
+
+Filters and settings
+--------------------
+Original TextAnalysisTool.NET .tat XML attributes are supported for text/marker
+filters, descriptions and foreground/background colors. Unknown attributes are
+retained on save. Unsupported types and invalid regexes are reported explicitly.
+Preferences use a versioned TextScope XML format and native QSettings.
+Older TextAnalysisTool.Qt preferences exports remain readable.
+The compact filter list shows a checkbox, letter, predicate and [matches / total].
+The filter dialog uses separate Excluding, Case-sensitive and Regular expression
+checkboxes. Color menus offer [Default], named colors and Custom...; canceling
+a custom-color dialog preserves the previous value. Description... exposes the
+optional description without changing the main filter controls.
+
+Compatibility
+-------------
+PCRE2 is not .NET Regex. Balancing groups, class subtraction and other .NET-specific
+semantics are not promised. Imported patterns must be reviewed for dialect changes.
+Legacy .NET parser DLLs cannot be loaded as native Qt plug-ins.
+Native parser plug-ins are trusted code and must implement the version-1 API.
+The optional --direct mode observes the original file and detects changes; it does
+not provide snapshot semantics.
+
+See docs/USER_GUIDE.md for workflows, settings and current limitations.
+See docs/DEVELOPER_GUIDE.md for building, architecture and tests,
+docs/RELEASING.md for distributions, and docs/ROADMAP.md for unfinished work.

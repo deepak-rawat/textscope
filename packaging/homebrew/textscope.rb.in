@@ -1,0 +1,49 @@
+class Textscope < Formula
+  desc "View, filter and navigate large text files"
+  homepage "https://github.com/deepak-rawat/textscope"
+  url "@SOURCE_URL@"
+  version "@VERSION@"
+  sha256 "@SHA256@"
+  license "MIT"
+
+  depends_on :macos
+  depends_on "cmake" => :build
+  depends_on "ninja" => :build
+  depends_on "pkgconf" => :build
+  depends_on "qt"
+  depends_on "pcre2"
+
+  def install
+    system "cmake", "-S", ".", "-B", "build", "-G", "Ninja", *std_cmake_args,
+           "-DCMAKE_PREFIX_PATH=#{Formula["qt"].opt_prefix};#{Formula["pcre2"].opt_prefix}",
+           "-DTEXTSCOPE_BUNDLE_RUNTIME=OFF",
+           "-DTEXTSCOPE_BUILD_TESTS=ON",
+           "-DTEXTSCOPE_BUILD_BENCHMARKS=OFF",
+           "-DTEXTSCOPE_BUILD_EXAMPLE_PLUGIN=ON",
+           "-DTEXTSCOPE_INSTALL_EXAMPLE_PLUGIN=OFF"
+    system "cmake", "--build", "build"
+    ENV["QT_QPA_PLATFORM"] = "offscreen"
+    system "ctest", "--test-dir", "build", "--output-on-failure"
+    system "cmake", "--install", "build"
+    system "/usr/bin/codesign", "--force", "--sign", "-", prefix/"textscope.app"
+    system "/usr/bin/codesign", "--verify", "--deep", "--strict", prefix/"textscope.app"
+    bin.install_symlink prefix/"textscope.app/Contents/MacOS/textscope"
+    bin.install_symlink prefix/"textscope.app/Contents/MacOS/tscope"
+  end
+
+  def caveats
+    <<~EOS
+      The app is installed at #{prefix}/textscope.app.
+      Launch with: open #{prefix}/textscope.app
+      This source-built app uses Homebrew libraries; it is not a standalone bundle.
+    EOS
+  end
+
+  test do
+    assert_match "TextScope @VERSION@", shell_output("#{bin}/textscope --version")
+    assert_match "TextScope @VERSION@", shell_output("#{bin}/tscope --version")
+    ENV["QT_QPA_PLATFORM"] = "offscreen"
+    system bin/"textscope", "--smoke-test"
+    system "/usr/bin/codesign", "--verify", "--deep", "--strict", prefix/"textscope.app"
+  end
+end

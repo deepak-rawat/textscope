@@ -1,0 +1,255 @@
+name: TextScope build and test
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      source-ref:
+        description: Immutable source revision to build
+        type: string
+        default: ""
+      release-tag:
+        description: Validated release tag; enables standalone packaging when set
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source-ref || github.sha }}
+      - name: Prepare source and public recipes
+        run: |
+          cmake -P packaging/PrepareSource.cmake
+          cmake -P packaging/PrepareRecipes.cmake
+      - uses: actions/upload-artifact@v4
+        with:
+          name: textscope-source-recipes
+          path: build/releases/
+          if-no-files-found: error
+
+  unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source-ref || github.sha }}
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libpcre2-dev libgl1-mesa-dev libxkbcommon-x11-0 libxcb-cursor0
+      - uses: jurplel/install-qt-action@v4
+        if: runner.os == 'Linux'
+        with:
+          version: "6.8.3"
+          modules: "qt5compat"
+          cache: true
+      - name: macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install qt pcre2 ninja pkg-config
+      - name: Configure
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DTEXTSCOPE_BUILD_EXAMPLE_PLUGIN=ON -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
+          else
+            cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DTEXTSCOPE_BUILD_EXAMPLE_PLUGIN=ON
+          fi
+      - name: Build
+        run: cmake --build build/release
+      - name: Test
+        run: ctest --test-dir build/release --output-on-failure
+      - name: Preserve failed test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: textscope-test-logs-${{ matrix.os }}
+          path: |
+            build/release/test-results/
+            build/release/Testing/Temporary/
+      - name: Smoke benchmark
+        run: ./build/release/textscope_benchmark --generate-mib 16
+      - name: Package standalone application
+        if: inputs.release-tag != ''
+        env:
+          RELEASE_TAG: ${{ inputs.release-tag }}
+        run: |
+          cpack --config build/release/CPackConfig.cmake -B build/releases/standalone \
+            -D "CPACK_PACKAGE_FILE_NAME=${RELEASE_TAG}-${RUNNER_OS}-${RUNNER_ARCH}"
+      - uses: actions/upload-artifact@v4
+        if: inputs.release-tag != ''
+        with:
+          name: textscope-standalone-${{ matrix.os }}
+          path: |
+            build/releases/standalone/*.dmg*
+            build/releases/standalone/*.tar.gz*
+          if-no-files-found: error
+
+  homebrew:
+    needs: source
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source-ref || github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: textscope-source-recipes
+          path: build/releases
+      - name: Build and test source-only formula
+        run: |
+          git config --global user.name "TextScope CI"
+          git config --global user.email "textscope-ci@example.invalid"
+          cmake -DCOMMIT_TAP=ON -DLOCAL_ROOT="$RUNNER_TEMP/textscope-local" -P packaging/PrepareLocalTap.cmake
+          brew tap local/releases "$RUNNER_TEMP/textscope-local/tap"
+          brew install --build-from-source local/releases/textscope
+          brew test local/releases/textscope
+
+  msys2:
+    needs: source
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: textscope-source-recipes
+          path: releases
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            base-devel git mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-qt6-base
+            mingw-w64-ucrt-x86_64-qt6-5compat mingw-w64-ucrt-x86_64-pcre2
+      - name: Build managed UCRT64 package
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cp releases/*-source.tar.gz releases/msys2/
+          cd releases/msys2
+          makepkg-mingw --syncdeps --noconfirm --cleanbuild
+          pacman -U --noconfirm ./*.pkg.tar.zst
+          textscope --version
+          tscope --version
+          sha256sum ./*.pkg.tar.zst > SHA256SUMS
+      - name: Build standalone UCRT64 ZIP
+        if: inputs.release-tag != ''
+        shell: msys2 {0}
+        env:
+          RELEASE_TAG: ${{ inputs.release-tag }}
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#textscope-v}"
+          cmake -S "releases/msys2/src/textscope-${version}-source" \
+            -B releases/standalone-build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=g++ -DTEXTSCOPE_BUNDLE_RUNTIME=ON \
+            -DTEXTSCOPE_BUILD_TESTS=ON -DTEXTSCOPE_BUILD_EXAMPLE_PLUGIN=ON \
+            -DTEXTSCOPE_INSTALL_EXAMPLE_PLUGIN=OFF
+          cmake --build releases/standalone-build
+          ctest --test-dir releases/standalone-build --output-on-failure
+          cpack --config releases/standalone-build/CPackConfig.cmake \
+            -B releases/standalone -D "CPACK_PACKAGE_FILE_NAME=${RELEASE_TAG}-Windows-UCRT64-X64"
+      - name: Verify extracted ZIP without MSYS2 on PATH
+        if: inputs.release-tag != ''
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.release-tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archives = @(Get-ChildItem releases/standalone/*.zip)
+          if ($archives.Count -ne 1) { throw 'Expected exactly one standalone ZIP' }
+          $destination = Join-Path $env:RUNNER_TEMP 'textscope-standalone-check'
+          Expand-Archive $archives[0].FullName -DestinationPath $destination
+          $executables = @(Get-ChildItem $destination -Filter textscope.exe -Recurse)
+          if ($executables.Count -ne 1) { throw 'Expected one extracted textscope.exe' }
+          $executable = $executables[0].FullName
+          $bin = Split-Path $executable
+          if (-not (Get-ChildItem $bin -Filter qwindows.dll -Recurse)) {
+            throw 'Qt Windows platform plug-in is missing'
+          }
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          foreach ($variable in @('QT_PLUGIN_PATH', 'QT_QPA_PLATFORM_PLUGIN_PATH', 'QTDIR')) {
+            if (Test-Path "Env:$variable") { Remove-Item "Env:$variable" }
+          }
+          $version = & $executable --version
+          $expectedVersion = 'TextScope ' + $env:RELEASE_TAG.Substring('textscope-v'.Length)
+          if ($LASTEXITCODE -ne 0 -or $version -ne $expectedVersion) {
+            throw "Standalone version check failed: $version"
+          }
+          $launcher = Join-Path $bin 'tscope.exe'
+          $launcherVersion = & $launcher --version
+          if ($LASTEXITCODE -ne 0 -or $launcherVersion -ne $expectedVersion) {
+            throw "Standalone launcher version check failed: $launcherVersion"
+          }
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          $process = Start-Process $executable -ArgumentList '--smoke-test' -WorkingDirectory $destination -PassThru
+          if (-not $process.WaitForExit(30000)) {
+            $process.Kill()
+            throw 'Standalone application launch timed out'
+          }
+          if ($process.ExitCode -ne 0) { throw "Standalone launch failed: $($process.ExitCode)" }
+      - uses: actions/upload-artifact@v4
+        if: inputs.release-tag != ''
+        with:
+          name: textscope-standalone-ucrt64
+          path: releases/standalone/*.zip*
+          if-no-files-found: error
+      - name: Preserve failed test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: textscope-test-logs-msys2
+          path: |
+            releases/msys2/src/build/test-results/
+            releases/msys2/src/build/Testing/Temporary/
+            releases/standalone-build/test-results/
+            releases/standalone-build/Testing/Temporary/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: textscope-msys2
+          path: |
+            releases/msys2/*.pkg.tar.zst
+            releases/msys2/SHA256SUMS
+          if-no-files-found: error
+
+  arch:
+    needs: source
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    steps:
+      - name: Prepare native package tools
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --needed --noconfirm cmake ninja pkgconf git qt6-base qt6-5compat pcre2
+          useradd -m builder
+      - uses: actions/download-artifact@v4
+        with:
+          name: textscope-source-recipes
+          path: releases
+      - name: Build managed Arch package
+        run: |
+          cp releases/*-source.tar.gz releases/arch/
+          chown -R builder:builder releases/arch
+          cd releases/arch
+          runuser -u builder -- makepkg --cleanbuild --noconfirm
+          runuser -u builder -- makepkg --printsrcinfo > .SRCINFO
+          pacman -U --noconfirm ./*.pkg.tar.zst
+          textscope --version
+          tscope --version
+          sha256sum ./*.pkg.tar.zst > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: textscope-arch
+          path: |
+            releases/arch/*.pkg.tar.zst
+            releases/arch/SHA256SUMS
+            releases/arch/.SRCINFO
+          include-hidden-files: true
+          if-no-files-found: error

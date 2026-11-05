@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/">
+    <file alias="help.txt">help.txt</file>
+    <file alias="icons/textscope.png">icons/textscope.png</file>
+  </qresource>
+</RCC>

@@ -1,0 +1,47 @@
+_realname=textscope
+pkgbase="mingw-w64-${_realname}"
+pkgname="${MINGW_PACKAGE_PREFIX}-${_realname}"
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='View, filter and navigate large text files'
+arch=('any')
+mingw_arch=('ucrt64')
+url='https://github.com/deepak-rawat/textscope'
+license=('spdx:MIT')
+depends=("${MINGW_PACKAGE_PREFIX}-gcc-libs"
+         "${MINGW_PACKAGE_PREFIX}-qt6-base"
+         "${MINGW_PACKAGE_PREFIX}-qt6-5compat"
+         "${MINGW_PACKAGE_PREFIX}-pcre2")
+makedepends=('git'
+             "${MINGW_PACKAGE_PREFIX}-cc"
+             "${MINGW_PACKAGE_PREFIX}-cmake"
+             "${MINGW_PACKAGE_PREFIX}-ninja"
+             "${MINGW_PACKAGE_PREFIX}-pkgconf")
+source=("@SOURCE_URL@")
+sha256sums=('@SHA256@')
+
+build() {
+    [[ ${MSYSTEM} == UCRT64 ]] || { echo 'Use MSYS2 UCRT64' >&2; return 1; }
+    MSYS2_ARG_CONV_EXCL="-DCMAKE_INSTALL_PREFIX=" \
+        "${MINGW_PREFIX}/bin/cmake" -S "${srcdir}/textscope-${pkgver}-source" \
+        -B "${srcdir}/build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_CXX_COMPILER=g++ -DCMAKE_INSTALL_PREFIX="${MINGW_PREFIX}" \
+        -DTEXTSCOPE_BUNDLE_RUNTIME=OFF -DTEXTSCOPE_BUILD_TESTS=ON \
+        -DTEXTSCOPE_BUILD_BENCHMARKS=OFF -DTEXTSCOPE_BUILD_EXAMPLE_PLUGIN=ON \
+        -DTEXTSCOPE_INSTALL_EXAMPLE_PLUGIN=OFF
+    "${MINGW_PREFIX}/bin/cmake" --build "${srcdir}/build"
+}
+
+check() {
+    QT_QPA_PLATFORM=offscreen "${MINGW_PREFIX}/bin/ctest" \
+        --test-dir "${srcdir}/build" --output-on-failure || {
+            cat "${srcdir}/build/test-results/"*.txt
+            return 1
+        }
+}
+
+package() {
+    DESTDIR="${pkgdir}" "${MINGW_PREFIX}/bin/cmake" --install "${srcdir}/build"
+    install -Dm644 "${srcdir}/textscope-${pkgver}-source/LICENSE" \
+        "${pkgdir}${MINGW_PREFIX}/share/licenses/textscope/LICENSE"
+}

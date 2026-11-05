@@ -1,0 +1,18 @@
+include("${CMAKE_CURRENT_LIST_DIR}/ReleaseCommon.cmake")
+release_archive()
+if(NOT DEFINED RELEASE_URL)
+    set(RELEASE_URL "https://github.com/deepak-rawat/textscope/releases/download/textscope-v${VERSION}")
+endif()
+string(REGEX REPLACE "/$" "" RELEASE_URL "${RELEASE_URL}")
+if(NOT RELEASE_URL MATCHES "^(https?|file)://" OR RELEASE_URL MATCHES "[\n\r\t \"'\\\\;$`#]")
+    message(FATAL_ERROR "Release URL contains characters unsafe for package recipes")
+endif()
+set(SOURCE_URL "${RELEASE_URL}/textscope-${VERSION}-source.tar.gz")
+configure_file("${CMAKE_CURRENT_LIST_DIR}/homebrew/textscope.rb.in"
+    "${OUTPUT}/homebrew/Formula/textscope.rb" @ONLY NEWLINE_STYLE UNIX)
+foreach(platform arch msys2)
+    configure_file("${CMAKE_CURRENT_LIST_DIR}/${platform}/PKGBUILD.in"
+        "${OUTPUT}/${platform}/PKGBUILD" @ONLY NEWLINE_STYLE UNIX)
+endforeach()
+release_checksum("${OUTPUT}/homebrew/Formula/textscope.rb")
+message(STATUS "Recipes: ${OUTPUT}/homebrew/Formula, ${OUTPUT}/arch, ${OUTPUT}/msys2")

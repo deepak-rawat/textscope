@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TextAnalysisTool.NET version="2025-11-21" showOnlyFilteredLines="False">
+  <filters>
+    <filter enabled="y" excluding="n" description="Errors" foreColor="ff0000" type="matches_text" case_sensitive="n" regex="n" text="ERROR"/>
+    <filter enabled="y" excluding="n" description="Warnings" backColor="f0e68c" type="matches_text" case_sensitive="n" regex="n" text="WARN"/>
+    <filter enabled="n" excluding="y" description="Hide debug" type="matches_text" case_sensitive="n" regex="n" text="DEBUG"/>
+    <filter enabled="n" excluding="n" description="Marker one" type="marked" marker="1"/>
+  </filters>
+</TextAnalysisTool.NET>

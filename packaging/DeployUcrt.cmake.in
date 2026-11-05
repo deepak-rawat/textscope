@@ -1,0 +1,29 @@
+set(bin "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/@CMAKE_INSTALL_BINDIR@")
+file(GLOB_RECURSE libraries LIST_DIRECTORIES FALSE "${bin}/*.dll")
+set(CMAKE_GET_RUNTIME_DEPENDENCIES_PLATFORM "windows+pe")
+set(CMAKE_GET_RUNTIME_DEPENDENCIES_TOOL "objdump")
+set(CMAKE_GET_RUNTIME_DEPENDENCIES_COMMAND "@TEXTSCOPE_OBJDUMP@")
+file(GET_RUNTIME_DEPENDENCIES
+    EXECUTABLES "${bin}/textscope.exe" "${bin}/tscope.exe"
+    LIBRARIES ${libraries}
+    DIRECTORIES "@TEXTSCOPE_COMPILER_BIN@"
+    RESOLVED_DEPENDENCIES_VAR resolved
+    UNRESOLVED_DEPENDENCIES_VAR unresolved
+    PRE_EXCLUDE_REGEXES "^[Aa][Pp][Ii]-[Mm][Ss]-" "^[Ee][Xx][Tt]-[Mm][Ss]-"
+    POST_EXCLUDE_REGEXES ".*[/\\\\][Ww][Ii][Nn][Dd][Oo][Ww][Ss][/\\\\].*")
+if(unresolved)
+    message(FATAL_ERROR "Unresolved UCRT64 runtime dependencies: ${unresolved}")
+endif()
+foreach(library IN LISTS resolved)
+    get_filename_component(directory "${library}" DIRECTORY)
+    if(NOT directory STREQUAL bin)
+        file(INSTALL "${library}" DESTINATION "${bin}" TYPE FILE)
+    endif()
+endforeach()
+set(notices "@TEXTSCOPE_COMPILER_BIN@/../share/licenses")
+if(NOT IS_DIRECTORY "${notices}")
+    message(FATAL_ERROR "UCRT64 dependency license directory is missing: ${notices}")
+endif()
+file(INSTALL "${notices}/"
+    DESTINATION "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/@CMAKE_INSTALL_DATADIR@/textscope/licenses/ucrt64"
+    TYPE DIRECTORY)

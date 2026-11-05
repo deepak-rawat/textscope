@@ -1,0 +1,30 @@
+pkgname=textscope
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='View, filter and navigate large text files'
+arch=('x86_64')
+url='https://github.com/deepak-rawat/textscope'
+license=('MIT')
+depends=('qt6-base>=6.5' 'qt6-5compat' 'pcre2')
+makedepends=('cmake' 'ninja' 'pkgconf' 'git')
+source=("@SOURCE_URL@")
+sha256sums=('@SHA256@')
+
+build() {
+    cmake -S "textscope-${pkgver}-source" -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+        -DTEXTSCOPE_BUNDLE_RUNTIME=OFF -DTEXTSCOPE_BUILD_TESTS=ON \
+        -DTEXTSCOPE_BUILD_BENCHMARKS=OFF -DTEXTSCOPE_BUILD_EXAMPLE_PLUGIN=ON \
+        -DTEXTSCOPE_INSTALL_EXAMPLE_PLUGIN=OFF
+    cmake --build build
+}
+
+check() {
+    QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure
+}
+
+package() {
+    DESTDIR="${pkgdir}" cmake --install build
+    install -Dm644 "textscope-${pkgver}-source/LICENSE" \
+        "${pkgdir}/usr/share/licenses/textscope/LICENSE"
+}
