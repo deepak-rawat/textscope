@@ -92,7 +92,7 @@ int main(int argc, char** argv)
         if (argument == "--smoke-test") smokeTest = true;
         if (argument == "--help" || argument == "--version") {
             QTextStream out(stdout);
-            if (argument == "--version") out << "TextScope 0.1.0\n";
+            if (argument == "--version") out << "TextScope " TEXTSCOPE_VERSION "\n";
             else out << "Usage: textscope [file] [--filters file.tat] [--config preferences.xml]\n"
                 "           [--line N] [--clipboard] [--encoding NAME] [--direct]\n"
                 "Legacy /Filters: /Config: /Line: /Clipboard aliases are accepted.\n"
@@ -103,7 +103,7 @@ int main(int argc, char** argv)
     Application app(argc, argv);
     app.setApplicationName("TextScope");
     app.setOrganizationName("TextScope");
-    app.setApplicationVersion("0.1.0");
+    app.setApplicationVersion(TEXTSCOPE_VERSION);
     app.setDesktopFileName("textscope");
     try {
         const QIcon icon(":/icons/textscope.png");

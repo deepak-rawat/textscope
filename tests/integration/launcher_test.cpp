@@ -34,7 +34,7 @@ private slots:
             if (QByteArray(argument).contains('h'))
                 QVERIFY(output.startsWith("Usage: tscope "));
             else
-                QCOMPARE(output, QByteArray("TextScope 0.1.0\n"));
+                QCOMPARE(output, QByteArray("TextScope " TEXTSCOPE_VERSION "\n"));
             QVERIFY(process.readAllStandardError().isEmpty());
         }
     }

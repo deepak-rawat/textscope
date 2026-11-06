@@ -159,7 +159,8 @@ After all required jobs pass, it creates a **draft**, never publishes automatica
 Draft assets: macOS DMG, Linux TAR.GZ, UCRT64 Windows ZIP, Arch/MSYS2 packages,
 source archive, and recipe archive; each has a `.sha256` sidecar, plus `SHA256SUMS`.
 The Windows ZIP is built separately with bundling ON and smoke-tested after
-extraction with MSYS2 removed from PATH.
+extraction with MSYS2 removed from PATH. Its smoke test uses the native Windows
+platform plug-in, which Qt may deploy under `share/qt6/plugins` rather than `bin`.
 
 Download the draft assets and verify:
 

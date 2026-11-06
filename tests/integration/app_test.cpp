@@ -216,7 +216,7 @@ private slots:
         QCOMPARE(process.exitStatus(), QProcess::NormalExit);
         QCOMPARE(process.exitCode(), 0);
         QCOMPARE(process.readAllStandardOutput().replace("\r\n", "\n"),
-            QByteArray("TextScope 0.1.0\n"));
+            QByteArray("TextScope " TEXTSCOPE_VERSION "\n"));
         process.start(QString::fromUtf8(TEXTSCOPE_TEST_EXECUTABLE), {"--help"});
         QVERIFY(process.waitForFinished());
         QCOMPARE(process.exitStatus(), QProcess::NormalExit);

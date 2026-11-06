@@ -171,14 +171,15 @@ jobs:
           if ($executables.Count -ne 1) { throw 'Expected one extracted textscope.exe' }
           $executable = $executables[0].FullName
           $bin = Split-Path $executable
-          if (-not (Get-ChildItem $bin -Filter qwindows.dll -Recurse)) {
+          $packageRoot = Split-Path $bin
+          if (-not (Get-ChildItem $packageRoot -Filter qwindows.dll -Recurse)) {
             throw 'Qt Windows platform plug-in is missing'
           }
           $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
           foreach ($variable in @('QT_PLUGIN_PATH', 'QT_QPA_PLATFORM_PLUGIN_PATH', 'QTDIR')) {
             if (Test-Path "Env:$variable") { Remove-Item "Env:$variable" }
           }
-          $version = & $executable --version
+          $version = (& $executable --version | Out-String).Trim()
           $expectedVersion = 'TextScope ' + $env:RELEASE_TAG.Substring('textscope-v'.Length)
           if ($LASTEXITCODE -ne 0 -or $version -ne $expectedVersion) {
             throw "Standalone version check failed: $version"
@@ -188,7 +189,7 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $launcherVersion -ne $expectedVersion) {
             throw "Standalone launcher version check failed: $launcherVersion"
           }
-          $env:QT_QPA_PLATFORM = 'offscreen'
+          $env:QT_QPA_PLATFORM = 'windows'
           $process = Start-Process $executable -ArgumentList '--smoke-test' -WorkingDirectory $destination -PassThru
           if (-not $process.WaitForExit(30000)) {
             $process.Kill()

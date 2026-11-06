@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(TextScope VERSION 0.1.0 LANGUAGES CXX)
+project(TextScope VERSION 0.1.1 LANGUAGES CXX)
 include(GNUInstallDirs)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -27,6 +27,7 @@ else()
 endif()
 
 add_library(textscope_options INTERFACE)
+target_compile_definitions(textscope_options INTERFACE TEXTSCOPE_VERSION="${PROJECT_VERSION}")
 target_compile_options(textscope_options INTERFACE
     $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall;-Wextra;-Wpedantic>
     $<$<CXX_COMPILER_ID:MSVC>:/W4;/permissive->)
@@ -63,7 +64,6 @@ set_target_properties(textscope PROPERTIES
 
 add_executable(tscope src/app/launcher.cpp)
 target_link_libraries(tscope PRIVATE Qt6::Core textscope_options)
-target_compile_definitions(tscope PRIVATE TEXTSCOPE_VERSION="${PROJECT_VERSION}")
 set_target_properties(tscope PROPERTIES WIN32_EXECUTABLE FALSE MACOSX_BUNDLE FALSE)
 if(APPLE)
     set_target_properties(tscope PROPERTIES INSTALL_RPATH "@loader_path/../Frameworks")

@@ -1036,7 +1036,7 @@ void Session::command(const QString& name)
             pasteText(QString::fromUtf8(help.readAll()));
         } else if (name == "about") {
             QMessageBox::about(window_, "TextScope",
-                "TextScope 0.1.0\nC++20 / Qt Widgets / PCRE2\n"
+                "TextScope " TEXTSCOPE_VERSION "\nC++20 / Qt Widgets / PCRE2\n"
                 "Immutable snapshots and large-file filtering.\n\n"
                 "Native PCRE2 syntax is not identical to .NET regex.\n"
                 "Original .tat attribute format is supported; original preferences XML and .NET plug-ins are not.\n"
