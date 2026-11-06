@@ -18,7 +18,7 @@ release_archive()
 set(assets "${ARCHIVE}")
 foreach(spec
     "textscope-standalone-ubuntu-24.04|${RELEASE_TAG}-Linux-X64.tar.gz"
-    "textscope-standalone-macos-14|${RELEASE_TAG}-macOS-*.dmg"
+    "textscope-standalone-macos-latest|${RELEASE_TAG}-macOS-*.dmg"
     "textscope-standalone-ucrt64|${RELEASE_TAG}-Windows-UCRT64-X64.zip"
     "textscope-arch|textscope-${VERSION}-*-x86_64.pkg.tar.zst"
     "textscope-msys2|mingw-w64-ucrt-x86_64-textscope-${VERSION}-*.pkg.tar.zst")

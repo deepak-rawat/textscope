@@ -103,7 +103,7 @@ foreach(path homebrew/Formula/textscope.rb arch/PKGBUILD msys2/PKGBUILD)
 endforeach()
 set(packages
     "textscope-standalone-ubuntu-24.04/textscope-v0.1.0-Linux-X64.tar.gz"
-    "textscope-standalone-macos-14/textscope-v0.1.0-macOS-ARM64.dmg"
+    "textscope-standalone-macos-latest/textscope-v0.1.0-macOS-ARM64.dmg"
     "textscope-standalone-ucrt64/textscope-v0.1.0-Windows-UCRT64-X64.zip"
     "textscope-arch/textscope-0.1.0-1-x86_64.pkg.tar.zst"
     "textscope-msys2/mingw-w64-ucrt-x86_64-textscope-0.1.0-1-any.pkg.tar.zst")
@@ -169,7 +169,7 @@ reject("checksum differs" "${CMAKE_COMMAND}" ${release_args} -P "${release_scrip
 file(REMOVE "${artifacts}/textscope-msys2/mingw-w64-ucrt-x86_64-textscope-0.1.0-1-any.pkg.tar.zst")
 reject("found 0" "${CMAKE_COMMAND}" ${release_args} -P "${release_script}")
 file(WRITE "${artifacts}/textscope-msys2/mingw-w64-ucrt-x86_64-textscope-0.1.0-1-any.pkg.tar.zst" "fixture\n")
-file(WRITE "${artifacts}/textscope-standalone-macos-14/textscope-v0.1.0-macOS-X64.dmg" "fixture\n")
+file(WRITE "${artifacts}/textscope-standalone-macos-latest/textscope-v0.1.0-macOS-X64.dmg" "fixture\n")
 reject("found 2" "${CMAKE_COMMAND}" ${release_args} -P "${release_script}")
 
 if(APPLE)

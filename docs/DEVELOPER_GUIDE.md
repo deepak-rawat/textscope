@@ -314,6 +314,9 @@ repository root only on manual dispatch or when called by another workflow.
 Ordinary branch pushes and pull requests do not trigger it. It accepts
 `source-ref` for an immutable checkout and `release-tag` to enable standalone
 packaging. Only the draft-upload job has repository write permission.
+Both the standalone macOS job and Homebrew job use `macos-latest`, which follows
+GitHub's latest stable runner image. Their release artifact names must match the
+release asset collector.
 The CMake project version supplies `TEXTSCOPE_VERSION` through `textscope_options`
 so application metadata, About text, CLI output and tests stay in sync.
 Commands and deployment details are in the [release guide](RELEASING.md).
