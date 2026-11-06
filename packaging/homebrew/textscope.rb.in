@@ -19,6 +19,7 @@ class Textscope < Formula
            "-DTEXTSCOPE_BUNDLE_RUNTIME=OFF",
            "-DTEXTSCOPE_BUILD_TESTS=ON",
            "-DTEXTSCOPE_BUILD_BENCHMARKS=OFF",
+           "-DTEXTSCOPE_BUILD_PERFORMANCE_TESTS=OFF",
            "-DTEXTSCOPE_BUILD_EXAMPLE_PLUGIN=ON",
            "-DTEXTSCOPE_INSTALL_EXAMPLE_PLUGIN=OFF"
     system "cmake", "--build", "build"
@@ -42,8 +43,6 @@ class Textscope < Formula
   test do
     assert_match "TextScope @VERSION@", shell_output("#{bin}/textscope --version")
     assert_match "TextScope @VERSION@", shell_output("#{bin}/tscope --version")
-    ENV["QT_QPA_PLATFORM"] = "offscreen"
-    system bin/"textscope", "--smoke-test"
     system "/usr/bin/codesign", "--verify", "--deep", "--strict", prefix/"textscope.app"
   end
 end

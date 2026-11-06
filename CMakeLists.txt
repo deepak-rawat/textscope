@@ -9,6 +9,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 option(TEXTSCOPE_BUILD_TESTS "Build tests" ON)
+option(TEXTSCOPE_BUILD_PERFORMANCE_TESTS "Build viewport/session performance tests" ON)
 option(TEXTSCOPE_BUILD_BENCHMARKS "Build the headless benchmark" ON)
 option(TEXTSCOPE_BUILD_EXAMPLE_PLUGIN "Build the streaming parser example" OFF)
 option(TEXTSCOPE_SANITIZERS "Enable address and undefined behavior sanitizers" OFF)
@@ -92,6 +93,9 @@ if(TEXTSCOPE_BUILD_TESTS)
     file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS tests/*_test.cpp)
     foreach(test_source IN LISTS TEST_SOURCES)
         get_filename_component(test_name "${test_source}" NAME_WE)
+        if(test_name STREQUAL "performance_test" AND NOT TEXTSCOPE_BUILD_PERFORMANCE_TESTS)
+            continue()
+        endif()
         add_executable(${test_name} "${test_source}")
         if(test_name STREQUAL "app_test" OR test_name STREQUAL "performance_test")
             target_sources(${test_name} PRIVATE src/app/session.cpp src/app/session.hpp resources/resources.qrc)
@@ -116,7 +120,7 @@ if(TEXTSCOPE_BUILD_TESTS)
         add_test(NAME ${test_name} COMMAND ${test_name}
             -o -,txt -o "${CMAKE_CURRENT_BINARY_DIR}/test-results/${test_name}.txt,txt")
         set_tests_properties(${test_name} PROPERTIES
-            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_LOGGING_TO_CONSOLE=1")
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_LOGGING_TO_CONSOLE=1" TIMEOUT 60)
         if(test_name STREQUAL "performance_test")
             set_tests_properties(${test_name} PROPERTIES LABELS "performance" TIMEOUT 90)
         endif()
@@ -124,11 +128,13 @@ if(TEXTSCOPE_BUILD_TESTS)
     add_test(NAME packaging COMMAND "${CMAKE_COMMAND}"
         "-DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}" "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/packaging-tests"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/packaging/packaging_test.cmake")
+    set_tests_properties(packaging PROPERTIES TIMEOUT 120)
     if(NOT TEXTSCOPE_BUNDLE_RUNTIME AND NOT TEXTSCOPE_INSTALL_EXAMPLE_PLUGIN)
         add_test(NAME managed_install COMMAND "${CMAKE_COMMAND}"
             "-DBINARY=${CMAKE_BINARY_DIR}" "-DCONFIG=$<CONFIG>"
             "-DBINDIR=${CMAKE_INSTALL_BINDIR}"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/packaging/managed_install_test.cmake")
+        set_tests_properties(managed_install PROPERTIES TIMEOUT 120)
     endif()
 endif()
 

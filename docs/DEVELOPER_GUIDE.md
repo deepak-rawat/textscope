@@ -69,6 +69,7 @@ flowchart LR
 | Option | Default | Purpose |
 |---|---|---|
 | `TEXTSCOPE_BUILD_TESTS` | ON | QtTest and packaging tests |
+| `TEXTSCOPE_BUILD_PERFORMANCE_TESTS` | ON | Viewport/session performance test; requires tests ON |
 | `TEXTSCOPE_BUILD_BENCHMARKS` | ON | Production-engine benchmark |
 | `TEXTSCOPE_BUILD_EXAMPLE_PLUGIN` | OFF | Demo parser/native loading test |
 | `TEXTSCOPE_INSTALL_EXAMPLE_PLUGIN` | ON | Install demo if built; OFF in managed recipes/UCRT64 ZIP |
@@ -205,6 +206,8 @@ CTest sets `QT_QPA_PLATFORM=offscreen`. Direct QtTest runs need that variable
 unless testing a native platform intentionally. Use isolated temporary files and
 settings. Offscreen tests do not certify native dialogs, physical keyboards,
 screen readers, clipboard interoperability or clean-machine installation.
+Ordinary QtTest suites time out after 60 seconds, packaging/managed-install
+scripts after 120 seconds, and the performance suite after 90 seconds.
 
 Logs: `build/test-results/<test>.txt` and CTest's `Testing/Temporary`.
 Failed CI jobs upload diagnostics; MSYS2 also prints per-test files.
@@ -314,9 +317,26 @@ repository root only on manual dispatch or when called by another workflow.
 Ordinary branch pushes and pull requests do not trigger it. It accepts
 `source-ref` for an immutable checkout and `release-tag` to enable standalone
 packaging. Only the draft-upload job has repository write permission.
-Both the standalone macOS job and Homebrew job use `macos-latest`, which follows
-GitHub's latest stable runner image. Their release artifact names must match the
-release asset collector.
+The main workflow builds/tests Windows, Linux and macOS independently, disables
+performance-test and benchmark targets, and creates only standalone packages for
+releases. Homebrew, Arch and managed MSYS2 builds run separately through
+[TextScope managed package validation](../.github/workflows/textscope-managed.yml).
+They are manual, not release gates. All package recipes retain offscreen
+functional tests but disable performance targets.
+
+[TextScope performance validation](../.github/workflows/textscope-performance.yml)
+is also manual. It builds only the performance suite and benchmark on all three
+platforms, runs the labeled performance tests and a 16 MiB benchmark, and uploads
+measurements. In **Actions**, select either validation workflow, choose
+**Run workflow**, and select the branch to validate. These workflows do
+not publish packages or releases. To validate a tag that contains these workflow
+files, use `gh workflow run textscope-managed.yml --ref <tag>` or
+`gh workflow run textscope-performance.yml --ref <tag>`.
+
+Both macOS workflows use `macos-latest`, which follows GitHub's latest stable
+runner image. Standalone release artifact names must match the asset collector.
+Jobs have overall timeouts and upload available test diagnostics on failure or
+cancellation. Installed-app window smoke tests are not run in CI.
 The CMake project version supplies `TEXTSCOPE_VERSION` through `textscope_options`
 so application metadata, About text, CLI output and tests stay in sync.
 Commands and deployment details are in the [release guide](RELEASING.md).
@@ -327,7 +347,7 @@ directly. Managed-install tests and native package checks verify launcher versio
 Lint from the repository root:
 
 ```sh
-actionlint .github/workflows/textscope-build.yml .github/workflows/textscope-release.yml
+actionlint .github/workflows/*.yml
 ```
 
 ## Assets and documentation

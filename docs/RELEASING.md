@@ -90,6 +90,17 @@ Override with `-DRELEASE_URL=<base-url>` or `-DARCHIVE=<absolute-source-archive>
 Recipes build and test from source with package-manager dependencies and runtime
 bundling **OFF**. Preparation alone does not compile, install or publish anything.
 
+### Manual managed-package validation
+
+In **Actions > TextScope managed package validation > Run workflow**, select the
+branch to test. For a tag containing this workflow, use
+`gh workflow run textscope-managed.yml --ref <tag>`.
+This separately builds/tests the Homebrew formula and
+builds/installs Arch and MSYS2 UCRT64 packages. Native packages, checksums and
+Arch `.SRCINFO` are workflow artifacts, not automatic draft-release assets.
+Managed-package compatibility is not a gate for standalone releases; run this
+workflow before distributing those recipes or packages.
+
 ### Homebrew source-only formula and local tap
 
 macOS only; run after source preparation:
@@ -156,11 +167,19 @@ an existing matching tag. The [release workflow](../.github/workflows/textscope-
 validates the tag/version and builds the exact tagged commit.
 After all required jobs pass, it creates a **draft**, never publishes automatically.
 
-Draft assets: macOS DMG, Linux TAR.GZ, UCRT64 Windows ZIP, Arch/MSYS2 packages,
-source archive, and recipe archive; each has a `.sha256` sidecar, plus `SHA256SUMS`.
-The Windows ZIP is built separately with bundling ON and smoke-tested after
-extraction with MSYS2 removed from PATH. Its smoke test uses the native Windows
-platform plug-in, which Qt may deploy under `share/qt6/plugins` rather than `bin`.
+Draft assets: macOS DMG, Linux TAR.GZ, UCRT64 Windows ZIP, source archive, and
+recipe archive; each has a `.sha256` sidecar, plus `SHA256SUMS`. The recipe archive
+contains the Homebrew formula and Arch/MSYS2 PKGBUILDs; native managed packages
+and build-generated `.SRCINFO` are not included.
+The Windows ZIP is built separately with bundling ON. CI checks both executable
+versions after extraction with MSYS2 removed from PATH, and checks that the
+Windows platform plug-in is present (Qt may deploy it under `share/qt6/plugins`
+rather than `bin`). The separate manual Homebrew validation checks installed
+executable versions and signing.
+Installed-app window smoke tests are excluded from CI; automated offscreen Qt
+functional tests remain enabled. Performance tests and benchmarks run in the
+separate manual **TextScope performance validation** workflow.
+Native GUI launch must be verified manually before publishing.
 
 Download the draft assets and verify:
 
@@ -199,7 +218,7 @@ ctest --test-dir build --output-on-failure -R '^packaging$'
 From the repository root:
 
 ```sh
-actionlint .github/workflows/textscope-build.yml .github/workflows/textscope-release.yml
+actionlint .github/workflows/*.yml
 ```
 
 Packaging tests check source/recipe/asset safeguards, not native installer

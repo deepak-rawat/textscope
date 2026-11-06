@@ -1,0 +1,69 @@
+name: TextScope performance validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  performance:
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: ${{ matrix.os == 'windows-latest' && 'msys2 {0}' || 'bash' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libpcre2-dev libgl1-mesa-dev libxkbcommon-x11-0 libxcb-cursor0
+      - uses: jurplel/install-qt-action@v4
+        if: runner.os == 'Linux'
+        with:
+          version: "6.8.3"
+          modules: "qt5compat"
+          cache: true
+      - name: macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install qt pcre2 ninja pkg-config
+      - uses: msys2/setup-msys2@v2
+        if: runner.os == 'Windows'
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-qt6-base mingw-w64-ucrt-x86_64-qt6-5compat
+            mingw-w64-ucrt-x86_64-pcre2
+      - name: Configure
+        run: |
+          args=()
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            args+=("-DCMAKE_PREFIX_PATH=$QT_ROOT_DIR")
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            args+=("-DCMAKE_CXX_COMPILER=g++")
+          fi
+          cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DTEXTSCOPE_BUILD_TESTS=ON -DTEXTSCOPE_BUILD_PERFORMANCE_TESTS=ON \
+            -DTEXTSCOPE_BUILD_BENCHMARKS=ON "${args[@]}"
+      - name: Build performance targets
+        run: cmake --build build/release --target performance_test textscope_benchmark
+      - name: Run offscreen performance tests
+        run: ctest --test-dir build/release --output-on-failure -L performance
+      - name: Smoke benchmark
+        run: ./build/release/textscope_benchmark --generate-mib 16 > build/release/benchmark.json
+      - name: Preserve measurements and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: textscope-performance-${{ matrix.os }}
+          path: |
+            build/release/benchmark.json
+            build/release/test-results/performance_test.txt
+            build/release/Testing/Temporary/

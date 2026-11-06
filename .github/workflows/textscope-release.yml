@@ -20,6 +20,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       sha: ${{ steps.version.outputs.sha }}
@@ -57,6 +58,7 @@ jobs:
   release:
     needs: [validate, build]
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: write
     env:
@@ -92,12 +94,15 @@ jobs:
           This release is a draft for installation and package verification.
           Publish it manually in GitHub Releases only after verification.
 
-          Assets include standalone Linux, macOS and Windows packages, Arch and Windows
-          MSYS2 UCRT64 packages, the source archive, recipes and SHA-256 checksums.
-          Both Windows packages use MSYS2 UCRT64 GCC, not MSVC/vcpkg.
+          Assets include standalone Linux, macOS and Windows packages, the source
+          archive, recipes and SHA-256 checksums.
+          Windows uses MSYS2 UCRT64 GCC, not MSVC/vcpkg.
           Standalone filenames identify their OS and architecture; the macOS DMG
           is not a universal build and is ad-hoc signed, not notarized.
           Homebrew is distributed as a source-only formula, not a bottle.
+          Managed Homebrew, Arch and MSYS2 validation runs separately on manual
+          dispatch; it is not a release gate. Native Arch/MSYS2 packages are not
+          included in this draft.
           Public recipe download URLs work only after the release is published.
           EOF
           gh release create "$TAG" release-assets/* --verify-tag --draft \

@@ -1,0 +1,137 @@
+name: TextScope managed package validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare source and public recipes
+        run: |
+          cmake -P packaging/PrepareSource.cmake
+          cmake -P packaging/PrepareRecipes.cmake
+      - uses: actions/upload-artifact@v4
+        with:
+          name: textscope-source-recipes
+          path: build/releases/
+          if-no-files-found: error
+
+  homebrew:
+    needs: source
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: textscope-source-recipes
+          path: build/releases
+      - name: Build and test source-only formula
+        run: |
+          git config --global user.name "TextScope CI"
+          git config --global user.email "textscope-ci@example.invalid"
+          cmake -DCOMMIT_TAP=ON -DLOCAL_ROOT="$RUNNER_TEMP/textscope-local" -P packaging/PrepareLocalTap.cmake
+          brew tap local/releases "$RUNNER_TEMP/textscope-local/tap"
+          brew install --build-from-source local/releases/textscope
+          brew test local/releases/textscope
+      - name: Preserve failed Homebrew diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: textscope-test-logs-homebrew
+          path: ~/Library/Logs/Homebrew/textscope/
+
+  msys2:
+    needs: source
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: textscope-source-recipes
+          path: releases
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            base-devel git mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-qt6-base
+            mingw-w64-ucrt-x86_64-qt6-5compat mingw-w64-ucrt-x86_64-pcre2
+      - name: Build and install managed UCRT64 package
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cp releases/*-source.tar.gz releases/msys2/
+          cd releases/msys2
+          makepkg-mingw --syncdeps --noconfirm --cleanbuild
+          pacman -U --noconfirm ./*.pkg.tar.zst
+          textscope --version
+          tscope --version
+          sha256sum ./*.pkg.tar.zst > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: textscope-msys2
+          path: |
+            releases/msys2/*.pkg.tar.zst
+            releases/msys2/SHA256SUMS
+          if-no-files-found: error
+      - name: Preserve failed test diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: textscope-test-logs-msys2
+          path: |
+            releases/msys2/src/build/test-results/
+            releases/msys2/src/build/Testing/Temporary/
+
+  arch:
+    needs: source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    container: archlinux:base-devel
+    steps:
+      - name: Prepare native package tools
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --needed --noconfirm cmake ninja pkgconf git qt6-base qt6-5compat pcre2
+          useradd -m builder
+      - uses: actions/download-artifact@v4
+        with:
+          name: textscope-source-recipes
+          path: releases
+      - name: Build and install managed Arch package
+        run: |
+          cp releases/*-source.tar.gz releases/arch/
+          chown -R builder:builder releases/arch
+          cd releases/arch
+          runuser -u builder -- makepkg --cleanbuild --noconfirm
+          runuser -u builder -- makepkg --printsrcinfo > .SRCINFO
+          pacman -U --noconfirm ./*.pkg.tar.zst
+          textscope --version
+          tscope --version
+          sha256sum ./*.pkg.tar.zst > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: textscope-arch
+          path: |
+            releases/arch/*.pkg.tar.zst
+            releases/arch/SHA256SUMS
+            releases/arch/.SRCINFO
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Preserve failed test diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: textscope-test-logs-arch
+          path: |
+            releases/arch/src/build/test-results/
+            releases/arch/src/build/Testing/Temporary/
